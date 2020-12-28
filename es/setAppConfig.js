@@ -8,7 +8,6 @@ var _require = require('path'),
 
 var _require2 = require('miniapp-builder-shared'),
     platformMap = _require2.platformMap,
-    filterNativePages = _require2.filterNativePages,
     getAppConfig = _require2.getAppConfig;
 
 var _require3 = require('fs-extra'),
@@ -22,7 +21,9 @@ var PageLoader = require.resolve('jsx2mp-loader/src/page-loader');
 
 var setBaseConfig = require('./setBaseConfig');
 
-var setEntry = require('./setEntry');
+var _require4 = require('./setEntry'),
+    setEntry = _require4.setEntry,
+    setMultiplePackageEntry = _require4.setMultiplePackageEntry;
 
 module.exports = function (config, userConfig, _ref) {
   if (userConfig === void 0) {
@@ -40,21 +41,41 @@ module.exports = function (config, userConfig, _ref) {
       _userConfig$turnOffSo = _userConfig.turnOffSourceMap,
       turnOffSourceMap = _userConfig$turnOffSo === void 0 ? false : _userConfig$turnOffSo,
       _userConfig$constantD = _userConfig.constantDir,
-      constantDir = _userConfig$constantD === void 0 ? [] : _userConfig$constantD;
+      constantDir = _userConfig$constantD === void 0 ? [] : _userConfig$constantD,
+      _userConfig$subPackag = _userConfig.subPackages,
+      subPackages = _userConfig$subPackag === void 0 ? false : _userConfig$subPackag,
+      _userConfig$externals = _userConfig.externals,
+      externals = _userConfig$externals === void 0 ? {} : _userConfig$externals;
   var rootDir = context.rootDir,
       command = context.command;
   var mode = command;
-  var appConfig = getAppConfig(rootDir, target);
-  setEntry(config, appConfig.routes, {
-    entryPath: entryPath,
-    rootDir: rootDir,
-    target: target
-  }); // Set constantDir
+  var appConfig = getAppConfig(rootDir, target); // Need Copy files or dir
+
+  var needCopyList = []; // Record all the sub app configs
+
+  var subAppConfigList = [];
+
+  if (subPackages) {
+    setMultiplePackageEntry(config, appConfig.routes, {
+      rootDir: rootDir,
+      target: target,
+      outputPath: outputPath,
+      subAppConfigList: subAppConfigList,
+      needCopyList: needCopyList
+    });
+  } else {
+    setEntry(config, appConfig.routes, {
+      entryPath: entryPath,
+      rootDir: rootDir,
+      target: target,
+      outputPath: outputPath,
+      needCopyList: needCopyList
+    });
+  } // Set constantDir
   // `public` directory is the default static resource directory
 
-  var isPublicFileExist = existsSync(resolve(rootDir, 'src/public')); // Need Copy files or dir
 
-  var needCopyList = [];
+  var isPublicFileExist = existsSync(resolve(rootDir, 'src/public'));
   var loaderParams = {
     mode: mode,
     entryPath: entryPath,
@@ -64,13 +85,9 @@ module.exports = function (config, userConfig, _ref) {
     platform: platformInfo,
     // To make old `constantDir` param compatible
     constantDir: isPublicFileExist ? ['src/public'].concat(constantDir) : constantDir,
-    rootDir: rootDir
-  };
-  appConfig.routes = filterNativePages(appConfig.routes, needCopyList, {
     rootDir: rootDir,
-    target: target,
-    outputPath: outputPath
-  });
+    externals: externals
+  };
 
   var pageLoaderParams = _extends({}, loaderParams, {
     entryPath: entryPath
@@ -80,6 +97,9 @@ module.exports = function (config, userConfig, _ref) {
     entryPath: dirname(entryPath)
   });
 
+  needCopyList.forEach(function (dirPatterns) {
+    return loaderParams.constantDir.push(dirPatterns.from);
+  });
   config.cache(true).mode('production').target('node'); // Set base jsx2mp config
 
   setBaseConfig(config, userConfig, {
@@ -88,16 +108,14 @@ module.exports = function (config, userConfig, _ref) {
     loaderParams: loaderParams,
     target: target,
     outputPath: outputPath
-  });
-  needCopyList.forEach(function (dirPatterns) {
-    return loaderParams.constantDir.push(dirPatterns.from);
   }); // Add app and page jsx2mp loader
 
   config.module.rule('withRoleJSX').use('app').loader(AppLoader).options(appLoaderParams).end().use('page').loader(PageLoader).options(pageLoaderParams).end();
   config.plugin('miniAppConfig').use(MiniAppConfigPlugin, [{
     type: 'complie',
+    subPackages: subPackages,
     appConfig: appConfig,
-    getAppConfig: getAppConfig,
+    subAppConfigList: subAppConfigList,
     outputPath: outputPath,
     target: target,
     nativeConfig: userConfig.nativeConfig

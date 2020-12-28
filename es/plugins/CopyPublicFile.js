@@ -13,11 +13,6 @@ var _require2 = require('fs-extra'),
     copySync = _require2.copySync;
 
 var chokidar = require('chokidar');
-
-var _require3 = require('miniapp-builder-shared'),
-    _require3$pathHelper = _require3.pathHelper,
-    isNativePage = _require3$pathHelper.isNativePage,
-    removeExt = _require3$pathHelper.removeExt;
 /**
  * Copy directories from rootDir + `src/${dir}` to outputPath + `${dir}`
  * @param {string[]} constantDir
@@ -31,15 +26,7 @@ function copyPublicFile(constantDir, rootDir, outputPath, target) {
     var srcDir = _step.value;
     var srcPath = resolve(rootDir, srcDir);
     var distPath = resolve(outputPath, srcDir.split('/').slice(1).join('/'));
-    copySync(srcPath, distPath, {
-      filter: function filter(file) {
-        if (/\.js$/.test(file)) {
-          return isNativePage(removeExt(file), target);
-        }
-
-        return true;
-      }
-    });
+    copySync(srcPath, distPath);
   }
 }
 /**
