@@ -1,7 +1,6 @@
 const { dirname, resolve } = require('path');
 const {
   platformMap,
-  filterNativePages,
   getAppConfig,
 } = require('miniapp-builder-shared');
 const { existsSync } = require('fs-extra');
@@ -12,7 +11,7 @@ const AppLoader = require.resolve('jsx2mp-loader/src/app-loader');
 const PageLoader = require.resolve('jsx2mp-loader/src/page-loader');
 
 const setBaseConfig = require('./setBaseConfig');
-const setEntry = require('./setEntry');
+const { setEntry, setMultiplePackageEntry } = require('./setEntry');
 
 module.exports = (
   config,
@@ -24,6 +23,7 @@ module.exports = (
     disableCopyNpm = false,
     turnOffSourceMap = false,
     constantDir = [],
+    subPackages = false,
     externals = {}
   } = userConfig;
   const { rootDir, command } = context;
@@ -31,14 +31,21 @@ module.exports = (
 
   const appConfig = getAppConfig(rootDir, target);
 
-  setEntry(config, appConfig.routes, { entryPath, rootDir, target });
+  // Need Copy files or dir
+  const needCopyList = [];
+  // Record all the sub app configs
+  const subAppConfigList = [];
+
+  if (subPackages) {
+    setMultiplePackageEntry(config, appConfig.routes, { rootDir, target, outputPath, subAppConfigList, needCopyList });
+  } else {
+    setEntry(config, appConfig.routes, { entryPath, rootDir, target, outputPath, needCopyList });
+  }
 
   // Set constantDir
   // `public` directory is the default static resource directory
   const isPublicFileExist = existsSync(resolve(rootDir, 'src/public'));
 
-  // Need Copy files or dir
-  const needCopyList = [];
   const loaderParams = {
     mode,
     entryPath,
@@ -54,12 +61,6 @@ module.exports = (
     externals
   };
 
-  appConfig.routes = filterNativePages(appConfig.routes, needCopyList, {
-    rootDir,
-    target,
-    outputPath,
-  });
-
   const pageLoaderParams = {
     ...loaderParams,
     entryPath,
@@ -69,6 +70,10 @@ module.exports = (
     ...loaderParams,
     entryPath: dirname(entryPath),
   };
+
+  needCopyList.forEach((dirPatterns) =>
+    loaderParams.constantDir.push(dirPatterns.from)
+  );
 
   config.cache(true).mode('production').target('node');
 
@@ -80,10 +85,6 @@ module.exports = (
     target,
     outputPath,
   });
-
-  needCopyList.forEach((dirPatterns) =>
-    loaderParams.constantDir.push(dirPatterns.from)
-  );
 
   // Add app and page jsx2mp loader
   config.module
@@ -100,8 +101,9 @@ module.exports = (
   config.plugin('miniAppConfig').use(MiniAppConfigPlugin, [
     {
       type: 'complie',
+      subPackages,
       appConfig,
-      getAppConfig,
+      subAppConfigList,
       outputPath,
       target,
       nativeConfig: userConfig.nativeConfig,
