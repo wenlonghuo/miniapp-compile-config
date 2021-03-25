@@ -9,9 +9,10 @@ module.exports = /*#__PURE__*/function () {
   var _proto = RemoveDefaultResultPlugin.prototype;
 
   _proto.apply = function apply(compiler) {
-    compiler.hooks.afterCompile.tapAsync('RemoveDefaultResultPlugin', function (compilation, callback) {
-      compilation.assets = {};
-      callback();
+    compiler.hooks.compilation.tap('RemoveDefaultResultPlugin', function (compilation) {
+      compilation.hooks.shouldGenerateChunkAssets.tap('disableGenerateChunkAssets', function () {
+        return false;
+      });
     });
   };
 
